@@ -17,3 +17,5 @@ Vagrant.configure("2") do |config|
   config.vm.provision :shell, inline: "systemctl enable httpd.service"
 
 end
+
+# https://app.vagrantup.com/romych/boxes/centos8web

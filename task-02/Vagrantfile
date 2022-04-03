@@ -1,0 +1,72 @@
+Vagrant.configure("2") do |config|
+    config.vm.box = "debian/buster64"
+    config.vm.network "forwarded_port", guest: 8080, host: 8080, host_ip: "127.0.0.1"
+    config.vm.network "forwarded_port", guest: 8081, host: 8081, host_ip: "127.0.0.1"
+  
+    config.vm.provider "virtualbox" do |vb|
+      vb.memory = "2048"
+      vb.name   = "lxc2.vagrant.vm"
+    end
+  
+    config.vm.provision "shell", inline: <<-SHELL
+      echo '========================/home============================='
+      ls -la /home
+      echo '========================/home/vagrant====================='
+      ls -la /home/vagrant
+      echo '=========================================================='
+      apt-get update
+      apt-get install -y lxc lxc-templates mc
+      echo 'export DOWNLOAD_KEYSERVER="hkp://keyserver.ubuntu.com"' >> /home/vagrant/.bashrc
+      echo 'export DOWNLOAD_KEYSERVER="hkp://keyserver.ubuntu.com"'
+      mkdir /home/vagrant/.config/
+      mkdir /home/vagrant/.config/lxc/
+      touch /home/vagrant/.config/lxc/default.conf
+      chown vagrant /home/vagrant/.config/
+      chown vagrant /home/vagrant/.config/lxc/
+      chown vagrant /home/vagrant/.config/lxc/default.conf
+      sed '/lxc.apparmor.profile = generated/d' /etc/lxc/default.conf > /home/vagrant/.config/lxc/default.conf
+      echo 'lxc.apparmor.profile = unconfined' >> /home/vagrant/.config/lxc/default.conf
+      echo 'lxc.idmap = u 0 100000 65536' >> /home/vagrant/.config/lxc/default.conf
+      echo 'lxc.idmap = g 0 100000 65536' >> /home/vagrant/.config/lxc/default.conf
+      echo 'kernel.unprivileged_userns_clone=1' >> /etc/sysctl.conf
+      sed 's/GRUB_CMDLINE_LINUX_DEFAULT="net.ifnames=0/GRUB_CMDLINE_LINUX_DEFAULT="net.ifnames=0 systemd.legacy_systemd_cgroup_controller=yes/' /etc/default/grub >> /etc/default/grub
+      echo '=======================update-grub=========================='
+      update-grub
+      echo '=======================net configure========================'
+      touch /etc/lxc/lxc-usernet
+      echo 'vagrant veth lxcbr0 10' >> /etc/lxc/lxc-usernet
+      touch /etc/default/lxc-net
+      echo 'USE_LXC_BRIDGE="true"
+      LXC_BRIDGE="lxcbr0"
+      LXC_ADDR="10.0.3.1"
+      LXC_NETMASK="255.255.255.0"
+      LXC_NETWORK="10.0.3.0/24"
+      LXC_DHCP_RANGE="10.0.3.2,10.0.3.254"
+      LXC_DHCP_MAX="253"
+      LXC_DHCP_CONFILE="/etc/lxc/dnsmasq.conf"
+      LXC_DOMAIN=""' >> /etc/default/lxc-net
+      touch /etc/lxc/dnsmasq-hosts.conf
+      echo "dhcp-hostsfile=/etc/lxc/dnsmasq-hosts.conf" >> /etc/lxc/dnsmasq.conf
+      echo "dhcp-host=lxc_static,10.0.3.26" >> /etc/lxc/dnsmasq-hosts.conf
+      echo "dhcp-host=lxc_dynamic,10.0.3.25" >> /etc/lxc/dnsmasq-hosts.conf
+      echo 'lxc.net.0.type  = veth' >> /home/vagrant/.config/lxc/default.conf
+      echo 'lxc.net.0.flags = up' >> /home/vagrant/.config/lxc/default.conf
+      echo 'lxc.net.0.link  = lxcbr0' >> /home/vagrant/.config/lxc/default.conf
+      echo '=======================svc lxc-net enable==================='
+      systemctl enable lxc-net
+      echo '=======================dst-nat to lxc======================='
+      echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
+      echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
+      apt-get -y install iptables-persistent
+      iptables -t nat -A PREROUTING -p tcp --dport 8080 -j DNAT --to 10.0.3.25:80
+      iptables -t nat -A PREROUTING -p tcp --dport 8081 -j DNAT --to 10.0.3.26:80
+      chmod 666 /etc/iptables/rules.v4
+      iptables-save > /etc/iptables/rules.v4
+      echo '=======================reboot==============================='
+      reboot
+      SHELL
+    #config.vm.provision "shell", privileged: false, inline: <<-SHELL
+        #echo '=======================rebooted==========================='
+       # lxc-create -n cent_stat
+       # SHELL
+end

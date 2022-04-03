@@ -47,8 +47,8 @@ Vagrant.configure("2") do |config|
       LXC_DOMAIN=""' >> /etc/default/lxc-net
       touch /etc/lxc/dnsmasq-hosts.conf
       echo "dhcp-hostsfile=/etc/lxc/dnsmasq-hosts.conf" >> /etc/lxc/dnsmasq.conf
-      echo "dhcp-host=lxc_static,10.0.3.26" >> /etc/lxc/dnsmasq-hosts.conf
-      echo "dhcp-host=lxc_dynamic,10.0.3.25" >> /etc/lxc/dnsmasq-hosts.conf
+      echo "lxc_static,10.0.3.26" >> /etc/lxc/dnsmasq-hosts.conf
+      echo "lxc_dynamic,10.0.3.25" >> /etc/lxc/dnsmasq-hosts.conf
       echo 'lxc.net.0.type  = veth' >> /home/vagrant/.config/lxc/default.conf
       echo 'lxc.net.0.flags = up' >> /home/vagrant/.config/lxc/default.conf
       echo 'lxc.net.0.link  = lxcbr0' >> /home/vagrant/.config/lxc/default.conf

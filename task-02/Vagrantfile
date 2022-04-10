@@ -8,12 +8,17 @@ Vagrant.configure("2") do |config|
       vb.name   = "lxc2.vagrant.vm"
     end
   
-    config.vm.provision "shell", inline: <<-SHELL
-      echo '========================/home============================='
-      ls -la /home
-      echo '========================/home/vagrant====================='
-      ls -la /home/vagrant
-      echo '=========================================================='
+    config.vm.provision "shell", privileged: true, inline: <<-SHELL
+      echo '=============started as '$USER' user================='
+      echo '=========waiting for the internets=========================='
+      while :; do
+        if  host keyserver.ubuntu.com; then
+          break
+        fi
+        echo "no conection, sleep 1s"
+        sleep 1;
+      done
+      echo "=======connection established, continue==================="
       apt-get update
       apt-get install -y lxc lxc-templates mc
       echo 'export DOWNLOAD_KEYSERVER="hkp://keyserver.ubuntu.com"' >> /home/vagrant/.bashrc
@@ -63,10 +68,44 @@ Vagrant.configure("2") do |config|
       chmod 666 /etc/iptables/rules.v4
       iptables-save > /etc/iptables/rules.v4
       echo '=======================reboot==============================='
-      reboot
       SHELL
-    #config.vm.provision "shell", privileged: false, inline: <<-SHELL
-        #echo '=======================rebooted==========================='
-       # lxc-create -n cent_stat
-       # SHELL
+    
+    config.vm.provision :reload
+    
+    config.vm.provision "shell", privileged: false, inline: <<-SHELL
+      echo '=======rebooted, continue as '$USER' user================='
+      echo '=========waiting for the internets=========================='
+      while :; do
+        if  host keyserver.ubuntu.com; then
+          break
+        fi
+        echo "no conection, sleep 1s"
+        sleep 1;
+      done
+      echo "=======connection established, continue==================="
+      DOWNLOAD_KEYSERVER="hkp://keyserver.ubuntu.com" lxc-create -t download -n lxc_static -- -d centos -r 7 -a amd64
+      DOWNLOAD_KEYSERVER="hkp://keyserver.ubuntu.com" lxc-create -t download -n lxc_dynamic -- -d centos -r 7 -a amd64
+      lxc-start -n lxc_static
+      lxc-start -n lxc_dynamic
+      sleep 30  
+      lxc-attach -n lxc_static -- ping 8.8.8.8 -c 4
+      lxc-attach -n lxc_static -- yum install httpd -y
+      lxc-attach -n lxc_static -- systemctl start httpd.service
+      lxc-attach -n lxc_static -- systemctl enable httpd.service
+      lxc-attach -n lxc_static -- yum install git -y
+      lxc-attach -n lxc_static -- mkdir /tmp/itacademy
+      lxc-attach -n lxc_static -- git clone https://github.com/Fenikks/itacademy-devops-files /tmp/itacademy
+      lxc-attach -n lxc_static -- cp /tmp/itacademy/01-demosite-static/index.html /var/www/html/index.html
+      lxc-attach -n lxc_static -- rm -rf /tmp/itacademy
+      lxc-attach -n lxc_dynamic -- ping 8.8.8.8 -c 4
+      lxc-attach -n lxc_dynamic -- yum install httpd -y
+      lxc-attach -n lxc_dynamic -- yum install php -y
+      lxc-attach -n lxc_dynamic -- systemctl start httpd.service
+      lxc-attach -n lxc_dynamic -- systemctl enable httpd.service
+      lxc-attach -n lxc_dynamic -- yum install git -y
+      lxc-attach -n lxc_dynamic -- mkdir /tmp/itacademy
+      lxc-attach -n lxc_dynamic -- git clone https://github.com/Fenikks/itacademy-devops-files /tmp/itacademy
+      lxc-attach -n lxc_dynamic -- cp /tmp/itacademy/01-demosite-php/index.php /var/www/html/index.php
+      lxc-attach -n lxc_dynamic -- rm -rf /tmp/itacademy
+    SHELL
 end

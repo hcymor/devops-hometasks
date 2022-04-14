@@ -15,7 +15,7 @@ Vagrant.configure("2") do |config|
         if  host keyserver.ubuntu.com; then
           break
         fi
-        echo "no conection, sleep 1s"
+        echo "check your conection, sleep 1s"
         sleep 1;
       done
       echo "=======connection established, continue==================="
@@ -79,7 +79,7 @@ Vagrant.configure("2") do |config|
         if  host keyserver.ubuntu.com; then
           break
         fi
-        echo "no conection, sleep 1s"
+        echo "check your conection, sleep 1s"
         sleep 1;
       done
       echo "=======connection established, continue==================="

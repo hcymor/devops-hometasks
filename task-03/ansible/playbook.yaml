@@ -1,0 +1,46 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+  - name: install git
+    yum: 
+      name: git
+      state: latest
+  - name: make port 8080 folder
+    file:
+      path: /var/www/8080
+      state: directory
+  - name: git clone repository
+    ansible.builtin.git:
+      repo: https://github.com/Fenikks/itacademy-devops-files.git
+      dest: /tmp/itacademy
+      clone: yes
+  - name: copy index.html
+    copy:
+      src: /tmp/itacademy/01-demosite-static/index.html
+      dest: /var/www/8080/index.html
+      remote_src: yes
+  - name: copy index.php
+    copy:
+      src: /tmp/itacademy/01-demosite-php/index.php
+      dest: /var/www/html/index.php
+      remote_src: yes
+  - name: delete unnecessary files
+    file:
+      path: /tmp/itacademy
+      state: absent
+  - name: adding 8080 port config
+    notify: restart httpd
+    blockinfile:
+      path: /etc/httpd/conf.d/8080.conf
+      create: yes
+      block: |
+        Listen 8080
+        <VirtualHost *:8080>
+        DocumentRoot "/var/www/8080/"
+        </VirtualHost>
+  handlers:
+  - name: restart httpd
+    service:
+      name: httpd
+      state: restarted

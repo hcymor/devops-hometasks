@@ -1,0 +1,225 @@
+- hosts: all
+  become: yes
+  tasks:
+
+  - name: ping
+    ansible.builtin.ping:
+
+  - name: apt update, install lxc, lxc-templates, mc
+    apt:
+      update-cache: yes
+      pkg: 
+      - mc
+      - lxc
+      - lxc-templates
+      - lxc-dev
+      - python3-pip
+      - python3-lxc
+      - git
+
+  - name: hkp://keyserver.ubuntu.com
+    blockinfile:
+      path: /home/vagrant/.bashrc
+      insertafter: EOF
+      marker: ""
+      block: |
+        export DOWNLOAD_KEYSERVER="hkp://keyserver.ubuntu.com"
+
+  - name: mkdir /home/vagrant/.config/
+    file:
+      path: /home/vagrant/.config
+      state: directory
+      owner: vagrant
+      group: vagrant
+    
+  - name: mkdir /home/vagrant/.config/lxc/
+    file:
+      path: /home/vagrant/.config/lxc
+      state: directory
+      owner: vagrant
+      group: vagrant
+
+  - name: creating /home/vagrant/.config/lxc/default.conf
+    copy:
+      src: /etc/lxc/default.conf
+      dest: /home/vagrant/.config/lxc/default.conf
+      remote_src: yes
+      owner: vagrant
+      group: vagrant
+
+  - name: lxc.apparmor.profile = unconfined
+    lineinfile:
+      path: /home/vagrant/.config/lxc/default.conf
+      search_string: lxc.apparmor.profile = generated
+      line: lxc.apparmor.profile = unconfined
+
+  - name: lxc.idmap
+    blockinfile:
+      path: /home/vagrant/.config/lxc/default.conf
+      insertafter: EOF
+      marker: ""
+      block: |
+        lxc.idmap = u 0 100000 65536
+        lxc.idmap = g 0 100000 65536
+
+  - name: kernel.unprivileged_userns_clone=1
+    blockinfile:
+      path: /etc/sysctl.conf
+      insertafter: EOF
+      marker: ""
+      block: |
+        kernel.unprivileged_userns_clone=1
+
+  - name: GRUB_CMDLINE_LINUX_DEFAULT
+    lineinfile:
+      path: /etc/default/grub
+      search_string: GRUB_CMDLINE_LINUX_DEFAULT="net.ifnames=0 biosdevname=0"
+      line: GRUB_CMDLINE_LINUX_DEFAULT="net.ifnames=0 systemd.legacy_systemd_cgroup_controller=yes biosdevname=0"
+
+  - name: update-grub
+    shell: update-grub
+
+  - name: Touch lxc-usernet
+    ansible.builtin.file:
+      path: /etc/lxc/lxc-usernet
+      state: touch
+
+  - name: lxc-usernet
+    blockinfile:
+      path: /etc/lxc/lxc-usernet
+      insertafter: EOF
+      marker: ""
+      block: |
+        vagrant veth lxcbr0 10
+
+  - name: Touch lxc-net
+    ansible.builtin.file:
+      path: /etc/default/lxc-net
+      state: touch
+
+  - name: lxc-net
+    blockinfile:
+      path: /etc/default/lxc-net
+      insertafter: EOF
+      marker: ""
+      block: |
+        USE_LXC_BRIDGE="true"
+        LXC_BRIDGE="lxcbr0"
+        LXC_ADDR="10.0.3.1"
+        LXC_NETMASK="255.255.255.0"
+        LXC_NETWORK="10.0.3.0/24"
+        LXC_DHCP_RANGE="10.0.3.2,10.0.3.254"
+        LXC_DHCP_MAX="253"
+        LXC_DHCP_CONFILE="/etc/lxc/dnsmasq.conf"
+        LXC_DOMAIN=""
+
+  - name: Touch dnsmasq-hosts.conf
+    ansible.builtin.file:
+      path: /etc/lxc/dnsmasq-hosts.conf
+      state: touch
+
+  - name: Touch dnsmasq.conf
+    ansible.builtin.file:
+      path: /etc/lxc/dnsmasq.conf
+      state: touch
+
+
+  - name: dnsmasq-hosts enable
+    blockinfile:
+      path: /etc/lxc/dnsmasq.conf
+      insertafter: EOF
+      marker: ""
+      block: |
+        dhcp-hostsfile=/etc/lxc/dnsmasq-hosts.conf
+
+  - name: lxc-net
+    blockinfile:
+      path: /etc/lxc/dnsmasq-hosts.conf
+      insertafter: EOF
+      marker: ""
+      block: |
+        lxc_static,10.0.3.26
+        lxc_dynamic,10.0.3.25
+
+  - name: lxc/default.conf
+    blockinfile:
+      path: /home/vagrant/.config/lxc/default.conf
+      insertafter: EOF
+      marker: ""
+      block: |
+        lxc.net.0.type  = veth
+        lxc.net.0.flags = up
+        lxc.net.0.link  = lxcbr0
+
+  - name: lxc-net enable
+    systemd:
+      name: lxc-net
+      enabled: yes
+
+  - name: echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
+    shell: echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
+
+  - name: echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
+    shell: echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
+
+  - name: iptables-persistent
+    apt:
+      update-cache: yes
+      name: iptables-persistent
+
+  - name: iptables -t nat -A PREROUTING -p tcp --dport 8080 -j DNAT --to 10.0.3.25:80
+    shell: iptables -t nat -A PREROUTING -p tcp --dport 8080 -j DNAT --to 10.0.3.25:80
+
+  - name: iptables -t nat -A PREROUTING -p tcp --dport 8081 -j DNAT --to 10.0.3.26:80
+    shell: iptables -t nat -A PREROUTING -p tcp --dport 8081 -j DNAT --to 10.0.3.26:80
+
+  - name: chmod 666 /etc/iptables/rules.v4
+    shell: chmod 666 /etc/iptables/rules.v4
+
+  - name: iptables-save > /etc/iptables/rules.v4
+    shell: iptables-save > /etc/iptables/rules.v4
+
+  - name: Reboot 
+    reboot:
+
+- hosts: all
+  become: no
+  tasks:
+
+  - name: ping
+    ansible.builtin.ping:
+
+  - name: lxc-create -t download -n lxc_static
+    community.general.lxc_container:
+      name: lxc_static
+      template: download
+      state: started
+      template_options: -d centos -r 7 -a amd64 --no-validate
+      container_command: |
+        sleep 20
+        yum install httpd -y
+        systemctl start httpd.service
+        systemctl enable httpd.service
+        yum install git -y
+        mkdir /tmp/itacademy
+        git clone https://github.com/Fenikks/itacademy-devops-files /tmp/itacademy
+        cp /tmp/itacademy/01-demosite-static/index.html /var/www/html/index.html
+        rm -rf /tmp/itacademy
+
+  - name: lxc-create -t download -n lxc_dynamic
+    community.general.lxc_container:
+      name: lxc_dynamic
+      template: download
+      state: started
+      template_options: -d centos -r 7 -a amd64 --no-validate
+      container_command: |
+        sleep 20
+        yum install httpd -y
+        yum install php -y
+        systemctl start httpd.service
+        systemctl enable httpd.service
+        yum install git -y
+        mkdir /tmp/itacademy
+        git clone https://github.com/Fenikks/itacademy-devops-files /tmp/itacademy
+        cp /tmp/itacademy/01-demosite-php/index.php /var/www/html/index.php
+        rm -rf /tmp/itacademy

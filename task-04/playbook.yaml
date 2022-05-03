@@ -99,6 +99,7 @@
           192.168.50.5 master.puppet
           192.168.50.10 slave1.puppet
           192.168.50.11 slave2.puppet
+          192.168.50.12 mineserver.puppet
 
     - name: add autosign, puppetserver host
       lineinfile:
@@ -124,9 +125,9 @@
   hosts: slave-puppet
   become: true
   tasks: 
-    - name: install puppet-agent wget
+    - name: install puppet-agent
       yum:
-       name: puppet-agent wget
+       name: puppet-agent
        state: latest
 
     - name: add hosts

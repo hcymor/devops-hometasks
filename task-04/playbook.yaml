@@ -1,0 +1,154 @@
+---
+- hosts: all
+  become: true
+  tasks:
+    - name: selinux disable
+      selinux:
+        state: disabled
+
+    # - name: stop firewall
+    #   service:
+    #     name: firewalld
+    #     state: stopped
+    #     enabled: false
+
+    - name: set timezone
+      command: /usr/bin/timedatectl set-timezone Europe/Minsk
+
+    - name: Install a list of packages 
+      yum:
+       name:
+        - mc
+        - nano
+       state: present  
+
+    - name: add puppet repo
+      yum:
+        name: https://yum.puppet.com/puppet7-release-el-8.noarch.rpm
+        disable_gpg_check: yes
+
+- name: master provision
+  hosts: master.puppet
+  become: true
+  tasks: 
+    - name: install puppetserver, git 
+      yum:
+       name:
+        - puppetserver
+        - git
+        - gem
+       state: present
+
+    - name: mkdir /etc/puppetlabs/r10k
+      file:
+        path: /etc/puppetlabs/r10k
+        state: directory
+        mode: '0777'
+
+    - name: touch /etc/puppetlabs/r10k/r10k.yaml
+      file:
+        path: /etc/puppetlabs/r10k/r10k.yaml
+        state: touch
+
+    - name: add config r10k
+      blockinfile:
+        path: /etc/puppetlabs/r10k/r10k.yaml
+        block: |
+          ---
+          :cachedir: '/var/cache/r10k'
+          :sources:
+            :my-org:
+              remote: 'https://github.com/hcymor/puppet-master-repo.git'
+              basedir: '/etc/puppetlabs/code/environments'
+
+    - name: directory /var/cache/r10k
+      file:
+        path: /var/cache/r10k
+        state: directory
+        mode: '0777'
+
+    - name: directory /etc/puppetlabs
+      file:
+        path: /etc/puppetlabs
+        state: directory
+        mode: '0777'
+        recurse: true
+
+    - name: gem install r10k
+      gem:
+        name: r10k
+        state: present
+        user_install: no
+
+    - name: 1st clone from github
+      become: false
+      shell: |
+        r10k deploy environment -p
+    
+    - name: change java ram
+      replace:
+        path: /etc/sysconfig/puppetserver
+        regexp: '-Xms2g -Xmx2g'
+        replace: '-Xms256m -Xmx256m'
+
+
+    - name: add hosts
+      blockinfile:
+        path: /etc/hosts
+        block: |
+          192.168.50.5 master.puppet
+          192.168.50.10 slave1.puppet
+          192.168.50.11 slave2.puppet
+
+    - name: add autosign, puppetserver host
+      lineinfile:
+        path: /etc/puppetlabs/puppet/puppet.conf
+        line: "{{item}}"
+      with_items:
+         - autosign = true 
+         - '[agent]'
+         - server = master.puppet
+              
+    - name: Enable Puppet
+      systemd:
+        name: puppetserver
+        enabled: yes
+        state: started
+
+    - name: start puppet
+      systemd:
+        state: started
+        name: puppetserver
+
+- name: slave provision 
+  hosts: slave-puppet
+  become: true
+  tasks: 
+    - name: install puppet-agent wget
+      yum:
+       name: puppet-agent wget
+       state: latest
+
+    - name: add hosts
+      become: true
+      blockinfile:
+        path: /etc/hosts
+        block: |
+          192.168.50.5 master.puppet
+
+    - name: add puppet server
+      lineinfile:
+        path: /etc/puppetlabs/puppet/puppet.conf
+        line: "{{item}}"
+      with_items:
+         - '[agent]'
+         - 'server = master.puppet' 
+         - 'runinterval = 1m'
+
+    - name: start puppet agent
+      systemd:
+        name: puppet
+        enabled: yes
+        daemon_reload: yes
+        state: restarted
+

@@ -1,0 +1,9 @@
+master.puppet ansible_connection=local
+
+[slave-puppet]
+slave1.puppet ansible_host=192.168.50.10 ansible_connection=ssh ansible_user=vagrant ansible_password=vagrant
+slave2.puppet ansible_host=192.168.50.11 ansible_connection=ssh ansible_user=vagrant ansible_password=vagrant
+
+[all:vars]
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+#dnssuf=.puppet

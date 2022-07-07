@@ -1,0 +1,73 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+
+    - name: Execute the command in remote shell; stdout goes to the specified file on the remote
+      shell: |
+        curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+        echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
+
+    - name: apt update + install java
+      apt:
+        name: openjdk-11-jre
+        update_cache: yes
+        state: latest
+
+    - name: apt install jenkins
+      apt:
+        name: jenkins
+        update_cache: no
+        state: latest
+
+    - name: Start service jenkins after all that shit
+      service:
+        name: jenkins
+        state: started
+
+    - name: Disable Setup Wizard
+      lineinfile:
+        dest: /etc/default/jenkins
+        insertafter: '^JAVA_ARGS="-Djava.awt.headless=true"'
+        line: 'JAVA_ARGS="-Djenkins.install.runSetupWizard=false"'
+
+    - name: Create directory init.groovy.d
+      file:
+        path: /var/lib/jenkins/init.groovy.d
+        state: directory
+
+    - name: basic-security.groovy
+      copy:
+        src: ./basic-security.groovy
+        dest: /var/lib/jenkins/init.groovy.d/basic-security.groovy
+
+    - name: Restart Jenkins
+      service: name=jenkins state=restarted
+
+    - name: delete jenkins users dir
+      file:
+        state: absent
+        path: /var/lib/jenkins/users
+
+    - name: create empty jenkins users dir
+      file:
+        state: directory
+        path: /var/lib/jenkins/users
+
+    - name: create empty jenkins admin dir
+      file:
+        state: directory
+        path: /var/lib/jenkins/users/admin_16051506009860875754
+
+    - name: create user admin with password test
+      copy:
+        src: ./users/admin_16051506009860875754/config.xml
+        dest: /var/lib/jenkins/users/admin_16051506009860875754/config.xml
+
+    - name: create userlist
+      copy:
+        src: ./users/users.xml
+        dest: /var/lib/jenkins/users/users.xml
+
+    - name: Restart Jenkins
+      service: name=jenkins state=restarted

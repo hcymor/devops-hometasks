@@ -1,0 +1,52 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>https://github.com/wickett/word-cloud-generator</description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.11.3">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/wickett/word-cloud-generator</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/master</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>export GOPATH=$WORKSPACE/go
+export PATH=&quot;$PATH:$(go env GOPATH)/bin&quot;
+
+go get github.com/tools/godep
+go get github.com/smartystreets/goconvey
+go get github.com/GeertJohan/go.rice/rice
+go get github.com/wickett/word-cloud-generator/wordyapi
+go get github.com/gorilla/mux
+
+GOOS=linux GOARCH=amd64 go build -o ./artifacts/word-cloud-generator -v .
+
+ls -l artifacts/</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers>
+    <org.jenkinsci.plugins.golang.GolangBuildWrapper plugin="golang@1.4">
+      <goVersion>Go 1.16</goVersion>
+    </org.jenkinsci.plugins.golang.GolangBuildWrapper>
+  </buildWrappers>
+</project>

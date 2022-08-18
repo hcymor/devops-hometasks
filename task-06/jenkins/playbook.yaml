@@ -1,73 +1,188 @@
----
-- hosts: all
-  become: yes
+- hosts: jenkins.vm
+  become: true
+  
+  vars:
+    jenkins_hostname: "192.168.56.10"
+    java_packages:
+      - openjdk-11-jdk
+
+  roles:
+    - role: geerlingguy.java
+
+    - role: geerlingguy.jenkins
+      jenkins_plugins_install_dependencies: true
+      jenkins_plugins:
+        - name: golang
+          version: latest
+          with_dependencies: yes
+        - name: git
+          version: latest
+          with_dependencies: yes
+        - name: github
+          version: latest
+          with_dependencies: yes
+        - name: okhttp-api
+          version: latest
+          with_dependencies: yes
+        - name: display-url-api
+          version: latest
+          with_dependencies: yes
+        - name: credentials
+          version: latest
+          with_dependencies: yes
+        - name: structs
+          version: latest
+          with_dependencies: yes
+        - name: workflow-scm-step
+          version: latest
+          with_dependencies: yes
+        - name: scm-api
+          version: latest
+          with_dependencies: yes
+        - name: mailer
+          version: latest
+          with_dependencies: yes
+        - name: git-client
+          version: latest
+          with_dependencies: yes
+        - name: script-security
+          version: latest
+          with_dependencies: yes
+        - name: workflow-step-api
+          version: latest
+          with_dependencies: yes
+        - name: credentials-binding
+          version: latest
+          with_dependencies: yes
+        - name: ssh-credentials
+          version: latest
+          with_dependencies: yes
+        - name: plain-credentials
+          version: latest
+          with_dependencies: yes
+        - name: trilead-api
+          version: latest
+          with_dependencies: yes
+        - name: apache-httpcomponents-client-4-api
+          version: latest
+          with_dependencies: yes
+        - name: jsch
+          version: latest
+          with_dependencies: yes
+        - name: caffeine-api
+          version: latest
+          with_dependencies: yes
+        - name: jakarta-activation-api
+          version: latest
+          with_dependencies: yes
+        - name: instance-identity
+          version: latest
+          with_dependencies: yes
+        - name: jakarta-mail-api
+          version: latest
+          with_dependencies: yes
+        - name: token-macro
+          version: latest
+          with_dependencies: yes
+        - name: jackson2-api
+          version: latest
+          with_dependencies: yes
+        - name: github-api
+          version: latest
+          with_dependencies: yes
+        - name: jaxb
+          version: latest
+          with_dependencies: yes
+        - name: snakeyaml-api
+          version: latest
+          with_dependencies: yes
+        - name: javax-activation-api
+          version: latest
+          with_dependencies: yes
+        - name: jaxb
+          version: latest
+          with_dependencies: yes
+        - name: ant
+          version: latest
+          with_dependencies: yes
+        - name: bootstrap5-api
+          version: 5.2.0-1
+          with_dependencies: yes
+        - name: build-timeout
+          version: latest
+          with_dependencies: yes
+        - name: javax-mail-api
+          version: latest
+          with_dependencies: yes
+        - name: sshd
+          version: latest
+          with_dependencies: yes
+        - name: bouncycastle-api
+          version: latest
+          with_dependencies: yes
+        - name: instance-identity
+          version: latest
+          with_dependencies: yes
+        - name: mina-sshd-api-common
+          version: latest
+          with_dependencies: yes
+        - name: bouncycastle-api
+          version: latest
+          with_dependencies: yes
+        - name: mina-sshd-api-core
+          version: latest
+          with_dependencies: yes
+        - name: plugin-util-api
+          version: latest
+          with_dependencies: yes
+        - name: workflow-support
+          version: 838.va_3a_087b_4055b
+          with_dependencies: yes
+        - name: workflow-api
+          version: 1164.v760c223ddb_32
+          with_dependencies: yes
+        - name: checks-api
+          version: 1.7.5
+          with_dependencies: yes
+        - name: popper2-api
+          version: 2.11.5-2
+          with_dependencies: yes
+        - name: font-awesome-api
+          version: 6.1.1-1
+          with_dependencies: yes
+
   tasks:
-
-    - name: Execute the command in remote shell; stdout goes to the specified file on the remote
-      shell: |
-        curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
-        echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
-
-    - name: apt update + install java
+    - name: install python-pip
       apt:
-        name: openjdk-11-jre
-        update_cache: yes
-        state: latest
+        name: python-pip
+        state: present
 
-    - name: apt install jenkins
-      apt:
-        name: jenkins
-        update_cache: no
-        state: latest
+    - name: Install python-jenkins
+      pip:
+        name: python-jenkins
 
-    - name: Start service jenkins after all that shit
-      service:
-        name: jenkins
-        state: started
+    - name: Install libxml
+      pip:
+        name: lxml
 
-    - name: Disable Setup Wizard
-      lineinfile:
-        dest: /etc/default/jenkins
-        insertafter: '^JAVA_ARGS="-Djava.awt.headless=true"'
-        line: 'JAVA_ARGS="-Djenkins.install.runSetupWizard=false"'
+    - name: add job gobuild
+      jenkins_job:
+        config: "{{ lookup('file', '/vagrant/gobuild_job.xml') }}"
+        name: g0build
+        password: admin
+        url: http://localhost:8080
+        user: admin
 
-    - name: Create directory init.groovy.d
-      file:
-        path: /var/lib/jenkins/init.groovy.d
-        state: directory
+    # - name: configuration go 1.16
+    #   copy:
+    #     src: /vagrant/tools/
+    #     dest: /var/lib/jenkins/tools/
+    #     owner: vagrant
+    #     group: vagrant
+    #     mode: '0755'
 
-    - name: basic-security.groovy
-      copy:
-        src: ./basic-security.groovy
-        dest: /var/lib/jenkins/init.groovy.d/basic-security.groovy
-
-    - name: Restart Jenkins
+    - name: restart jenkins
       service: name=jenkins state=restarted
 
-    - name: delete jenkins users dir
-      file:
-        state: absent
-        path: /var/lib/jenkins/users
-
-    - name: create empty jenkins users dir
-      file:
-        state: directory
-        path: /var/lib/jenkins/users
-
-    - name: create empty jenkins admin dir
-      file:
-        state: directory
-        path: /var/lib/jenkins/users/admin_16051506009860875754
-
-    - name: create user admin with password test
-      copy:
-        src: ./users/admin_16051506009860875754/config.xml
-        dest: /var/lib/jenkins/users/admin_16051506009860875754/config.xml
-
-    - name: create userlist
-      copy:
-        src: ./users/users.xml
-        dest: /var/lib/jenkins/users/users.xml
-
-    - name: Restart Jenkins
-      service: name=jenkins state=restarted
+    - name: Wait for Jenkins to restart
+      wait_for: host=localhost port=8080 delay=20 timeout=300
